@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LOG IN</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+
+    body {
+      font-family: 'Space Mono', 'Courier New', monospace;
+      background: #f0ede8;
+      color: #111;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      border-bottom: 3px solid #111;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header span {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    header .dot {
+      width: 10px; height: 10px;
+      background: #111;
+      display: inline-block;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+    }
+
+    .card {
+      border: 3px solid #111;
+      background: #fff;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .card-title {
+      border-bottom: 3px solid #111;
+      padding: 20px 28px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: #111;
+      color: #f0ede8;
+    }
+
+    .card-body {
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    input {
+      font-family: inherit;
+      font-size: 14px;
+      border: 2px solid #111;
+      padding: 10px 12px;
+      background: #f0ede8;
+      color: #111;
+      outline: none;
+      transition: background 0.1s;
+    }
+
+    input:focus {
+      background: #fff;
+      box-shadow: 4px 4px 0 #111;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      border: 2px solid #111;
+      padding: 13px;
+      background: #111;
+      color: #f0ede8;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+      margin-top: 4px;
+    }
+
+    button:hover {
+      background: #f0ede8;
+      color: #111;
+    }
+
+    .error {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: #c0392b;
+      text-transform: uppercase;
+      display: none;
+      padding: 10px 12px;
+      border: 2px solid #c0392b;
+      background: #fdecea;
+    }
+
+    .footer-link {
+      border-top: 2px solid #111;
+      padding: 16px 28px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .footer-link a {
+      font-weight: 700;
+      color: #111;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="dot"></span>
+    <span>Auth System</span>
+  </header>
+  <main>
+    <div class="card">
+      <div class="card-title">Log In</div>
+      <div class="card-body">
+        <div class="error" id="err"></div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" />
+        </div>
+        <button id="btn">Log In</button>
+      </div>
+      <div class="footer-link">No account? <a href="signup.html">Sign up</a></div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { login, getCurrentUser } from './auth.js';
+
+    if (getCurrentUser()) window.location.href = 'home.html';
+
+    document.getElementById('btn').addEventListener('click', () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const err = document.getElementById('err');
+
+      err.style.display = 'none';
+
+      if (!email || !password) {
+        err.textContent = 'All fields are required.';
+        err.style.display = 'block';
+        return;
+      }
+
+      const result = login(email, password);
+      if (!result.ok) {
+        err.textContent = result.error;
+        err.style.display = 'block';
+        return;
+      }
+
+      window.location.href = 'home.html';
+    });
+  </script>
+</body>
+</html>
