@@ -1,51 +1,60 @@
 const API = "https://api.escuelajs.co/api/v1";
+const PLACEHOLDER = "https://placehold.co/200x200/eee/999?text=?";
 
-let all = [],
-  filtered = [];
+// ── State ──────────────────────────────────────────────────────────────────
+let all = [], filtered = [];
 let cart = JSON.parse(localStorage.getItem("cart") || "[]");
-let activeCat = null;
-let minPrice = null, maxPrice = null;
+let activeCat = null, minPrice = null, maxPrice = null;
 
+// ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   fetchCategories();
-  const res = await fetch(`${API}/products?limit=200`).catch(() => null);
-  if (!res) {
-    document.getElementById("grid").innerHTML =
-      '<div class="status">Failed to load.</div>';
+
+  const res = await fetch(`${API}/products?limit=200&offset=0`).catch(() => null);
+  if (!res?.ok) {
+    document.getElementById("grid").innerHTML = '<div class="status">Failed to load.</div>';
     return;
   }
+
   all = await res.json();
   applyFilters();
   updateCount();
 }
 
+// ── Categories ─────────────────────────────────────────────────────────────
 async function fetchCategories() {
   const res = await fetch(`${API}/categories`).catch(() => null);
-  if (!res) return;
+  if (!res?.ok) return;
+
   const cats = await res.json();
   const list = document.getElementById("cat-list");
-  list.innerHTML = `<button class="cat-btn active" onclick="setCat(null,this)">All</button>`;
-  cats.forEach((c) => {
-    const b = document.createElement("button");
-    b.className = "cat-btn";
-    b.textContent = c.name;
-    b.onclick = (e) => setCat(c.id, e.target);
-    list.appendChild(b);
+
+  const allBtn = makeBtn("All", true, () => setCat(null, allBtn));
+  list.appendChild(allBtn);
+
+  cats.forEach(c => {
+    const btn = makeBtn(c.name, false, () => setCat(c.id, btn));
+    list.appendChild(btn);
   });
 }
 
+function makeBtn(label, active, onClick) {
+  const btn = document.createElement("button");
+  btn.className = "cat-btn" + (active ? " active" : "");
+  btn.textContent = label;
+  btn.addEventListener("click", onClick);
+  return btn;
+}
+
 function setCat(id, el) {
-  document
-    .querySelectorAll(".cat-btn")
-    .forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".cat-btn").forEach(b => b.classList.remove("active"));
   el.classList.add("active");
   activeCat = id;
   applyFilters();
 }
 
-function onSearch() {
-  applyFilters();
-}
+// ── Filters ────────────────────────────────────────────────────────────────
+function onSearch() { applyFilters(); }
 
 function onPriceChange() {
   minPrice = parseFloat(document.getElementById("min-price").value) || null;
@@ -55,111 +64,133 @@ function onPriceChange() {
 
 function applyFilters() {
   const q = document.getElementById("search").value.toLowerCase();
-  filtered = all.filter(
-    (p) =>
-      (!activeCat || p.category?.id === activeCat) &&
-      (!q || p.title.toLowerCase().includes(q)) &&
-      (!minPrice || p.price >= minPrice) &&
-      (!maxPrice || p.price <= maxPrice),
+
+  filtered = all.filter(p =>
+    (!activeCat || p.category?.id === activeCat) &&
+    (!q || p.title.toLowerCase().includes(q)) &&
+    (minPrice == null || p.price >= minPrice) &&
+    (maxPrice == null || p.price <= maxPrice)
   );
-  document.getElementById("result-count").textContent =
-    `${filtered.length} results`;
+
+  document.getElementById("result-count").textContent = `${filtered.length} results`;
   renderGrid();
 }
 
+// ── Image helper ───────────────────────────────────────────────────────────
 function getImg(p) {
-  if (!Array.isArray(p.images) || !p.images[0])
-    return "https://placehold.co/200x200/eee/999?text=?";
-  return p.images[0].replace(/[\[\]"]/g, "");
+  if (!p) return PLACEHOLDER;
+
+  let images = p.images;
+  if (typeof images === "string") {
+    try { images = JSON.parse(images); } catch { images = [images]; }
+  }
+
+  if (Array.isArray(images)) {
+    for (let img of images) {
+      if (typeof img !== "string") continue;
+      img = img.trim();
+      if (img.startsWith("[")) {
+        try { img = JSON.parse(img)[0]; } catch { img = img.replace(/^\["|"\]$/g, ""); }
+      }
+      if (img?.startsWith("http")) return img;
+    }
+  }
+
+  const fallback = p.image ?? p.category?.image;
+  if (typeof fallback === "string" && fallback.trim().startsWith("http")) return fallback.trim();
+
+  return PLACEHOLDER;
 }
 
+// ── Grid rendering ─────────────────────────────────────────────────────────
 function renderGrid() {
   const grid = document.getElementById("grid");
+
   if (!filtered.length) {
     grid.innerHTML = '<div class="status">No products found.</div>';
     return;
   }
 
-  grid.innerHTML = filtered
-    .map((p) => {
-      const inCart = cart.some((c) => c.id === p.id);
-      return `<div class="card">
-      <img src="${getImg(p)}" onerror="this.src='https://placehold.co/200x200/eee/999?text=?'" alt="">
+  grid.innerHTML = filtered.map(p => {
+    const inCart = cart.some(c => c.id === p.id);
+    return `<div class="card">
+      <img src="${getImg(p)}" onerror="this.src='${PLACEHOLDER}'" alt="${p.title || "Product"}">
       <div class="card-cat">${p.category?.name || ""}</div>
       <div class="card-name">${p.title}</div>
       <div class="card-price">$${p.price.toFixed(2)}</div>
-      <button onclick="addToCart(${p.id})" id="btn-${p.id}" class="${inCart ? "in-cart" : ""}">${inCart ? "IN CART" : "ADD TO CART"}</button>
+      <button onclick="addToCart(${p.id})" id="btn-${p.id}" ${inCart ? 'class="in-cart"' : ""}>
+        ${inCart ? "IN CART" : "ADD TO CART"}
+      </button>
     </div>`;
-    })
-    .join("");
+  }).join("");
 }
 
+// ── Cart logic ─────────────────────────────────────────────────────────────
 function addToCart(id) {
-  const p = all.find((x) => x.id === id);
+  const p = all.find(x => x.id === id);
   if (!p) return;
-  const ex = cart.find((c) => c.id === id);
-  if (ex) ex.qty++;
-  else
+
+  const existing = cart.find(c => c.id === id);
+  if (existing) {
+    existing.qty++;
+  } else {
     cart.push({ id, name: p.title, price: p.price, img: getImg(p), qty: 1 });
-  save();
-  updateCount();
-  const btn = document.getElementById(`btn-${id}`);
-  if (btn) {
-    btn.textContent = "IN CART";
-    btn.classList.add("in-cart");
   }
+
+  persist();
+  setCartBtn(id, true);
   toast("Added to cart");
 }
 
 function removeFromCart(id) {
-  cart = cart.filter((c) => c.id !== id);
-  save();
+  cart = cart.filter(c => c.id !== id);
+  persist();
   renderCart();
-  updateCount();
-  const btn = document.getElementById(`btn-${id}`);
-  if (btn) {
-    btn.textContent = "ADD TO CART";
-    btn.classList.remove("in-cart");
-  }
+  setCartBtn(id, false);
 }
 
-function changeQty(id, d) {
-  const item = cart.find((c) => c.id === id);
+function changeQty(id, delta) {
+  const item = cart.find(c => c.id === id);
   if (!item) return;
-  item.qty += d;
-  if (item.qty <= 0) {
-    removeFromCart(id);
-    return;
-  }
-  save();
+
+  item.qty += delta;
+  if (item.qty <= 0) { removeFromCart(id); return; }
+
+  persist();
   renderCart();
 }
 
-function save() {
+function setCartBtn(id, inCart) {
+  const btn = document.getElementById(`btn-${id}`);
+  if (!btn) return;
+  btn.textContent = inCart ? "IN CART" : "ADD TO CART";
+  btn.classList.toggle("in-cart", inCart);
+}
+
+function persist() {
   localStorage.setItem("cart", JSON.stringify(cart));
+  updateCount();
 }
 
 function updateCount() {
-  document.getElementById("cart-count").textContent = cart.reduce(
-    (s, c) => s + c.qty,
-    0,
-  );
+  document.getElementById("cart-count").textContent = cart.reduce((s, c) => s + c.qty, 0);
 }
 
+// ── Cart drawer ────────────────────────────────────────────────────────────
 function renderCart() {
   const el = document.getElementById("drawer-items");
   const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
   document.getElementById("cart-total").textContent = `$${total.toFixed(2)}`;
   updateCount();
+
   if (!cart.length) {
     el.innerHTML = '<p class="cart-empty">Your cart is empty.</p>';
     return;
   }
-  el.innerHTML = cart
-    .map(
-      (item) => `
+
+  el.innerHTML = cart.map(item => `
     <div class="cart-item">
-      <img src="${item.img}" onerror="this.src='https://placehold.co/50x50/eee/999?text=?'">
+      <img src="${item.img}" onerror="this.src='${PLACEHOLDER}'" alt="${item.name}">
       <div class="ci-info">
         <div class="ci-name">${item.name}</div>
         <div class="ci-price">$${(item.price * item.qty).toFixed(2)}</div>
@@ -170,9 +201,7 @@ function renderCart() {
         </div>
       </div>
       <button class="rm-btn" onclick="removeFromCart(${item.id})">✕</button>
-    </div>`,
-    )
-    .join("");
+    </div>`).join("");
 }
 
 function openCart() {
@@ -186,27 +215,24 @@ function closeCart() {
   document.getElementById("drawer").classList.remove("open");
 }
 
+// ── Checkout ───────────────────────────────────────────────────────────────
 function checkout() {
-  if (!cart.length) {
-    toast("Cart is empty");
-    return;
-  }
+  if (!cart.length) { toast("Cart is empty"); return; }
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  if (!user.email) {
-    toast("Please login first");
-    return;
-  }
+  if (!user.email) { toast("Please login first"); return; }
+
   const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const order = { user, items: cart, total };
   toast("Processing order...");
+
   setTimeout(() => {
-    if (Math.random() > 0.1) { // 90% success
+    if (Math.random() > 0.1) {
       const orders = JSON.parse(localStorage.getItem("orders") || "[]");
-      orders.push(order);
+      orders.push({ user, items: cart, total });
       localStorage.setItem("orders", JSON.stringify(orders));
+
       cart = [];
-      save();
-      updateCount();
+      persist();
       renderGrid();
       closeCart();
       toast("Order placed successfully!");
@@ -216,6 +242,7 @@ function checkout() {
   }, 2000);
 }
 
+// ── Toast ──────────────────────────────────────────────────────────────────
 let toastTimer;
 function toast(msg) {
   const t = document.getElementById("toast");
